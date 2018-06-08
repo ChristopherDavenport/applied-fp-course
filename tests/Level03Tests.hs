@@ -41,11 +41,26 @@ unitTests = do
       -- Write some more tests, below are some ideas to get you started:
 
       -- Don't worry if you don't get all of these done. :)
-
+      describe "Add Route" $ do
+        it "Should return a 'Hello there!' message with 200 status" $
+          post "/topic/add" "something" `shouldRespondWith` "Hello there!"
       -- 1) The '<topic>/add' route will respond with an error when given an empty comment
+        it "Should respond with an error when given an empty comment" $
+          post "/topic/add" "" `shouldRespondWith` "Empty Comment" {matchStatus = 400}
+      
+      describe "View Route" $ do
       -- 2) The '<topic>/view' route will respond correctly when given a topic
+        it "Should return a 'not implemented' message and 200 status" $
+          get "/topic/view" `shouldRespondWith` "View Request not implemented"
       -- 3) The '<topic>/view' route will respond with an error when given an empty topic
-      -- 4) A gibberish route will return a 404
+        it "Should respond with an error when given an empty commnet" $
+          get "//view" `shouldRespondWith` "Empty Topic" {matchStatus = 400}
+
+      describe "Other Options" $ do
+          -- 4) A gibberish route will return a 404
+        it "Should return 404 on a gibberish route" $
+          get "/kajsdfasdf" `shouldRespondWith` "Unknown Route" {matchStatus = 404}
+        
 
 -- After you're done here, you'll need to uncomment the use of these functions
 -- in the `test/Test.hs` otherwise the tests won't run!
