@@ -57,8 +57,7 @@ runApp = error "runApp needs re-implementing"
 --
 -- Our application configuration is defined in Conf.hs
 --
-prepareAppReqs
-  :: IO ( Either StartUpError DB.FirstAppDB )
+prepareAppReqs :: IO ( Either StartUpError DB.FirstAppDB )
 prepareAppReqs =
   error "prepareAppReqs not implemented"
 

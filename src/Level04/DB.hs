@@ -22,7 +22,9 @@ import qualified Database.SQLite.SimpleErrors       as Sql
 import           Database.SQLite.SimpleErrors.Types (SQLiteResponse)
 
 import           Level04.Types                      (Comment, CommentText,
-                                                     Error, Topic)
+                                                     Error, Topic, fromDbComment,
+                                                     getTopic, mkTopic, getCommentText)
+import           Level04.DB.Types                    
 
 -- ------------------------------------------------------------------------|
 -- You'll need the documentation for sqlite-simple ready for this section! |
@@ -43,17 +45,16 @@ data FirstAppDB = FirstAppDB
 closeDB
   :: FirstAppDB
   -> IO ()
-closeDB =
-  error "closeDb not implemented"
+closeDB firstAppDb = Sql.close $ dbConn firstAppDb
 
 -- Given a `FilePath` to our SQLite DB file, initialise the database and ensure
 -- our Table is there by running a query to create it, if it doesn't exist
 -- already.
-initDB
-  :: FilePath
-  -> IO ( Either SQLiteResponse FirstAppDB )
-initDB fp =
-  error "initDb not implemented"
+initDB :: FilePath -> IO ( Either SQLiteResponse FirstAppDB )
+initDB fp = do
+  connE <- Sql.runDBAction $ Sql.open fp
+  _ <- either (\e -> pure $ Left e) (\conn -> Sql.runDBAction $ Sql.execute_ conn createTableQ) connE
+  return $ either (\e -> Left e) (\conn -> Right $ FirstAppDB conn) connE
   where
   -- Query has an `IsString` instance so string literals like this can be
   -- converted into a `Query` type when the `OverloadedStrings` language
@@ -70,46 +71,54 @@ initDB fp =
 --
 -- HINT: You can use '?' or named place-holders as query parameters. Have a look
 -- at the section on parameter substitution in sqlite-simple's documentation.
-getComments
-  :: FirstAppDB
-  -> Topic
-  -> IO (Either Error [Comment])
-getComments =
+getComments :: FirstAppDB -> Topic -> IO (Either Error [Comment])
+getComments db t =
   let
     sql = "SELECT id,topic,comment,time FROM comments WHERE topic = ?"
+    conn = dbConn db
   -- There are several possible implementations of this function. Particularly
   -- there may be a trade-off between deciding to throw an Error if a DbComment
   -- cannot be converted to a Comment, or simply ignoring any DbComment that is
   -- not valid.
-  in
-    error "getComments not implemented"
+  in do
+    dbComment <- Sql.query conn sql (Sql.Only $ getTopic t) :: IO [DBComment]
+    return $ traverse fromDbComment dbComment
 
 addCommentToTopic
   :: FirstAppDB
   -> Topic
   -> CommentText
   -> IO (Either Error ())
-addCommentToTopic =
+addCommentToTopic db topic ct =
   let
     sql = "INSERT INTO comments (topic,comment,time) VALUES (?,?,?)"
-  in
-    error "addCommentToTopic not implemented"
+    conn = dbConn db
+    topicText = getTopic topic
+    commentText = getCommentText ct
+  in do
+    time <- getCurrentTime
+    _ <- Sql.execute conn sql $ DBCommentInsert topicText commentText time
+    return $ Right ()
 
 getTopics
   :: FirstAppDB
   -> IO (Either Error [Topic])
-getTopics =
+getTopics db =
   let
     sql = "SELECT DISTINCT topic FROM comments"
-  in
-    error "getTopics not implemented"
+    conn = dbConn db
+  in do
+    topics <- Sql.query_ conn sql :: IO [DBTopic]
+    return $ traverse (\dbTopic -> mkTopic $ dbTopicName dbTopic) topics
 
 deleteTopic
   :: FirstAppDB
   -> Topic
   -> IO (Either Error ())
-deleteTopic =
+deleteTopic db t =
   let
     sql = "DELETE FROM comments WHERE topic = ?"
-  in
-    error "deleteTopic not implemented"
+    conn = dbConn db
+  in do
+    _ <- Sql.execute conn sql $ Sql.Only $ getTopic t 
+    pure $ Right ()

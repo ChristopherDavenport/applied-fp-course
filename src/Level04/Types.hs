@@ -30,7 +30,7 @@ import qualified Data.Aeson.Types          as A
 
 import           Data.Time                 (UTCTime)
 
-import           Level04.DB.Types          (DBComment)
+import           Level04.DB.Types          (DBComment(..))
 
 -- Notice how we've moved these types into their own modules. It's cheap and
 -- easy to add modules to carve out components in a Haskell application. So
@@ -69,11 +69,9 @@ data Comment = Comment
 -- "topic"
 -- >>> modFieldLabel ""
 -- ""
-modFieldLabel
-  :: String
-  -> String
-modFieldLabel =
-  error "modFieldLabel not implemented"
+modFieldLabel :: String -> String
+modFieldLabel ('c':'o':'m':'m':'e':'n':'t':x) = x
+modFieldLabel a                               = a
 
 instance ToJSON Comment where
   -- This is one place where we can take advantage of our `Generic` instance.
@@ -95,11 +93,20 @@ instance ToJSON Comment where
 -- that we would be okay with showing someone. However unlikely it may be, this
 -- is a nice method for separating out the back and front end of a web app and
 -- providing greater guarantees about data cleanliness.
-fromDbComment
-  :: DBComment
-  -> Either Error Comment
-fromDbComment =
-  error "fromDbComment not yet implemented"
+fromDbComment :: DBComment -> Either Error Comment
+fromDbComment dbComment = do 
+  commentTopic' <- extractedCommentTopic
+  commentText <- extractedCommentText
+  return $ Comment extractedCommentId commentTopic' commentText extractedCommentTime
+  where
+    extractedCommentId :: CommentId
+    extractedCommentId = CommentId $ dbCommentId dbComment
+    extractedCommentTopic :: Either Error Topic
+    extractedCommentTopic = mkTopic $ dbCommentTopic dbComment
+    extractedCommentText :: Either Error CommentText
+    extractedCommentText = mkCommentText $ dbCommentBody dbComment
+    extractedCommentTime :: UTCTime
+    extractedCommentTime = dbCommentTime dbComment
 
 data RqType
   = AddRq Topic CommentText
@@ -115,3 +122,5 @@ renderContentType
   -> ByteString
 renderContentType PlainText = "text/plain"
 renderContentType JSON      = "application/json"
+
+--  GOTO: ``src/Level04/DB.hs``

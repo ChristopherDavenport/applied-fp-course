@@ -13,14 +13,9 @@ import           Data.Text           (Text)
 newtype CommentText = CommentText Text
   deriving (Show, ToJSON)
 
-mkCommentText
-  :: Text
-  -> Either Error CommentText
+mkCommentText :: Text -> Either Error CommentText
 mkCommentText =
   nonEmptyText CommentText EmptyCommentText
 
-getCommentText
-  :: CommentText
-  -> Text
-getCommentText (CommentText t) =
-  t
+getCommentText :: CommentText -> Text
+getCommentText (CommentText t) = t
