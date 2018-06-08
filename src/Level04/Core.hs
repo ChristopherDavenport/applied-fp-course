@@ -30,13 +30,16 @@ import           Data.Text.Encoding                 (decodeUtf8)
 import           Data.Aeson                         (ToJSON)
 import qualified Data.Aeson                         as A
 
+import           Data.Bifunctor                     (first, second)
+
 import           Database.SQLite.SimpleErrors.Types (SQLiteResponse)
 
-import           Level04.Conf                       (Conf, firstAppConfig)
+import           Level04.Conf                       (Conf(..), firstAppConfig)
 import qualified Level04.DB                         as DB
 import           Level04.Types                      (ContentType (JSON, PlainText),
                                                      Error (EmptyCommentText, EmptyTopic, UnknownRoute),
                                                      RqType (AddRq, ListRq, ViewRq),
+                                                     Topic, Comment,
                                                      mkCommentText, mkTopic,
                                                      renderContentType)
 
@@ -48,7 +51,11 @@ data StartUpError
   deriving Show
 
 runApp :: IO ()
-runApp = error "runApp needs re-implementing"
+runApp = do
+  appE <- prepareAppReqs
+  either (\_ -> error "App Failed to Startup") (run 3000) (fmap app appE)
+
+
 
 -- We need to complete the following steps to prepare our app requirements:
 --
@@ -58,8 +65,9 @@ runApp = error "runApp needs re-implementing"
 -- Our application configuration is defined in Conf.hs
 --
 prepareAppReqs :: IO ( Either StartUpError DB.FirstAppDB )
-prepareAppReqs =
-  error "prepareAppReqs not implemented"
+prepareAppReqs = do
+  e <- DB.initDB $ dbFilePath firstAppConfig
+  return $ first (\e -> DbInitErr e) e
 
 -- | Some helper functions to make our lives a little more DRY.
 mkResponse
@@ -127,12 +135,20 @@ handleRequest
   :: DB.FirstAppDB
   -> RqType
   -> IO (Either Error Response)
-handleRequest _db (AddRq _ _) =
-  (resp200 PlainText "Success" <$) <$> error "AddRq handler not implemented"
-handleRequest _db (ViewRq _)  =
-  error "ViewRq handler not implemented"
+handleRequest _db (AddRq t ct) =
+  (resp200 PlainText "Success" <$) <$> DB.addCommentToTopic _db t ct
+handleRequest _db (ViewRq topic)  =
+  let 
+    ioAction :: IO (Either Error [Comment])
+    ioAction = DB.getComments _db topic
+  in 
+    fmap (second resp200Json) (ioAction)
 handleRequest _db ListRq      =
-  error "ListRq handler not implemented"
+  let 
+    ioAction :: IO (Either Error [Topic])
+    ioAction = DB.getTopics _db
+  in 
+    fmap (second resp200Json) (ioAction)
 
 mkRequest
   :: Request
