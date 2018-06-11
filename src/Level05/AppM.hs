@@ -60,33 +60,30 @@ newtype AppM a = AppM (IO (Either Error a))
 --
 -- AppM e m a = AppM ( m (Either e a) )
 
-runAppM
-  :: AppM a
-  -> IO (Either Error a)
-runAppM (AppM m) =
-  m
+runAppM :: AppM a -> IO (Either Error a)
+runAppM (AppM m) = m
 
 instance Functor AppM where
   fmap :: (a -> b) -> AppM a -> AppM b
-  fmap = error "fmap for AppM not implemented"
+  fmap f (AppM a) = AppM ( fmap (\e -> fmap f e) a )
 
 instance Applicative AppM where
   pure :: a -> AppM a
-  pure  = error "pure for AppM not implemented"
+  pure a = AppM (pure (Right a))
 
   (<*>) :: AppM (a -> b) -> AppM a -> AppM b
-  (<*>) = error "spaceship for AppM not implemented"
+  (<*>) (AppM ioef) (AppM ioea) = error ""
 
 instance Monad AppM where
   return :: a -> AppM a
-  return = error "return for AppM not implemented"
+  return a = AppM (pure (Right a))
 
   (>>=) :: AppM a -> (a -> AppM b) -> AppM b
   (>>=)  = error "bind for AppM not implemented"
 
 instance MonadIO AppM where
   liftIO :: IO a -> AppM a
-  liftIO = error "liftIO for AppM not implemented"
+  liftIO ioa = AppM (fmap (\a -> Right a) ioa)
 
 instance MonadError Error AppM where
   throwError :: Error -> AppM a
