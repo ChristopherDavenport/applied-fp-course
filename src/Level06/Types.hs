@@ -31,7 +31,7 @@ import           Data.Text                          (Text)
 
 import           System.IO.Error                    (IOError)
 
-import           Data.Monoid                        (Last,
+import           Data.Monoid                        (Last(..),
                                                      Monoid (mappend, mempty))
 import           Data.Semigroup                     (Semigroup ((<>)))
 
@@ -158,7 +158,10 @@ newtype DBFilePath = DBFilePath
 -- Add some fields to the ``Conf`` type:
 -- - A customisable port number: ``Port``
 -- - A filepath for our SQLite database: ``DBFilePath``
-data Conf = Conf
+data Conf = Conf {
+  confPort :: Port,
+  confDBFilePath :: DBFilePath
+}
 
 -- We're storing our Port as a Word16 to be more precise and prevent invalid
 -- values from being used in our application. However Wai is not so stringent.
@@ -174,7 +177,7 @@ confPortToWai
   :: Conf
   -> Int
 confPortToWai =
-  error "confPortToWai not implemented"
+  fromIntegral . getPort . confPort
 
 -- Similar to when we were considering our application types, leave this empty
 -- for now and add to it as you go.
@@ -215,8 +218,8 @@ data PartialConf = PartialConf
 -- on the ``Semigroup`` instance for Last to always get the last value.
 instance Semigroup PartialConf where
   _a <> _b = PartialConf
-    { pcPort       = error "pcPort (<>) not implemented"
-    , pcDBFilePath = error "pcDBFilePath (<>) not implemented"
+    { pcPort       = (pcPort _a) <> (pcPort _b)
+    , pcDBFilePath = (pcDBFilePath _a) <> (pcDBFilePath _b)
     }
 
 -- We now define our ``Monoid`` instance for ``PartialConf``. Allowing us to
@@ -236,4 +239,6 @@ instance Monoid PartialConf where
 -- have to tell aeson how to go about converting the JSON into our PartialConf
 -- data structure.
 instance FromJSON PartialConf where
-  parseJSON = error "parseJSON for PartialConf not implemented yet."
+  parseJSON = A.withObject "PartialConf" $ \v -> PartialConf
+    <$> (fmap (\t -> Last $ Just $ Port t ) (v A..: "port"))
+    <*> (fmap (\t -> Last $ Just $ DBFilePath t) (v A..: "dbFilePath"))
