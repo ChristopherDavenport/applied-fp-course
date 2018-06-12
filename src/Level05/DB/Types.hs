@@ -4,6 +4,7 @@ import           Data.Text                      (Text)
 import           Data.Time                      (UTCTime)
 
 import           Database.SQLite.Simple.FromRow (FromRow (fromRow), field)
+import           Database.SQLite.Simple.ToRow   (ToRow (toRow))
 
 -- To try to avoid leaking various types and expected functionality around the
 -- application, we create a stand alone type that will represent the data we
@@ -28,3 +29,15 @@ instance FromRow DbComment where
             <*> field
             <*> field
             <*> field
+
+data DBCommentInsert = DBCommentInsert Text Text UTCTime
+
+instance ToRow DBCommentInsert where
+  toRow (DBCommentInsert topic body time) = toRow (topic, body, time)
+
+data DBTopic = DBTopic {
+  dbTopicName :: Text
+}
+  
+instance FromRow DBTopic where
+  fromRow = fmap DBTopic field

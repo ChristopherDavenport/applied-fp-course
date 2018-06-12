@@ -1,4 +1,5 @@
 {-# LANGUAGE OverloadedStrings #-}
+{-# language ScopedTypeVariables #-}
 module Level05.DB
   ( FirstAppDB (FirstAppDB)
   , initDB
@@ -29,8 +30,9 @@ import           Level05.Types                      (Comment, CommentText,
                                                      fromDbComment,
                                                      getCommentText, getTopic,
                                                      mkTopic)
+import           Level05.DB.Types                   (DbComment, DBCommentInsert(..), DBTopic(..))
 
-import           Level05.AppM                       (AppM)
+import           Level05.AppM                       (AppM(..), liftEither)
 
 -- We have a data type to simplify passing around the information we need to run
 -- our database queries. This also allows things to change over time without
@@ -65,37 +67,54 @@ initDB fp = Sql.runDBAction $ do
     createTableQ =
       "CREATE TABLE IF NOT EXISTS comments (id INTEGER PRIMARY KEY, topic TEXT, comment TEXT, time INTEGER)"
 
-runDB
-  :: (a -> Either Error b)
-  -> IO a
-  -> AppM b
-runDB =
-  error "Copy your completed 'runDB' and refactor to match the new type signature"
+runDB:: (a -> Either Error b) -> IO a -> AppM b
+runDB f ioa = AppM $ fmap f ioa
 
-getComments
-  :: FirstAppDB
-  -> Topic
-  -> AppM [Comment]
-getComments =
-  error "Copy your completed 'getComments' and refactor to match the new type signature"
+getComments:: FirstAppDB -> Topic -> AppM [Comment]
+getComments db t =
+    let
+      sql = "SELECT id,topic,comment,time FROM comments WHERE topic = ?"
+      conn = dbConn db
+      dbCommentIO = Sql.query conn sql (Sql.Only $ getTopic t) :: IO [DbComment]
+    in do
+      dbComment <- liftIO dbCommentIO
+      liftEither $ traverse fromDbComment dbComment
 
 addCommentToTopic
   :: FirstAppDB
   -> Topic
   -> CommentText
   -> AppM ()
-addCommentToTopic =
-  error "Copy your completed 'appCommentToTopic' and refactor to match the new type signature"
+addCommentToTopic db topic ct =
+    let
+      sql = "INSERT INTO comments (topic,comment,time) VALUES (?,?,?)"
+      conn = dbConn db
+      topicText = getTopic topic
+      commentText = getCommentText ct
+    in do
+      time <- liftIO getCurrentTime
+      _ <- liftIO $ Sql.execute conn sql $ DBCommentInsert topicText commentText time
+      return ()
 
 getTopics
   :: FirstAppDB
   -> AppM [Topic]
-getTopics =
-  error "Copy your completed 'getTopics' and refactor to match the new type signature"
+getTopics db =
+    let
+      sql = "SELECT DISTINCT topic FROM comments"
+      conn = dbConn db
+    in do
+      topics <- liftIO (Sql.query_ conn sql :: IO [DBTopic])
+      liftEither $ traverse (\dbTopic -> mkTopic $ dbTopicName dbTopic) topics
 
 deleteTopic
   :: FirstAppDB
   -> Topic
   -> AppM ()
-deleteTopic =
-  error "Copy your completed 'deleteTopic' and refactor to match the new type signature"
+deleteTopic db t =
+  let
+    sql = "DELETE FROM comments WHERE topic = ?"
+    conn = dbConn db
+  in do
+    _ <- liftIO $ Sql.execute conn sql $ Sql.Only $ getTopic t 
+    pure ()

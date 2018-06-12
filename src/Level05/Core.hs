@@ -27,11 +27,11 @@ import           Data.Text                          (Text)
 import           Data.Text.Encoding                 (decodeUtf8)
 
 import           Database.SQLite.SimpleErrors.Types (SQLiteResponse)
-
+import           Data.Bifunctor                     (first, second)
 import           Data.Aeson                         (ToJSON)
 import qualified Data.Aeson                         as A
 
-import           Level05.AppM                       (AppM, liftEither, runAppM)
+import           Level05.AppM                       (AppM(..), liftEither, runAppM)
 import qualified Level05.Conf                       as Conf
 import qualified Level05.DB                         as DB
 import           Level05.Types                      (ContentType (..),
@@ -53,8 +53,8 @@ runApp = do
   cfgE <- prepareAppReqs
   -- Loading the configuration can fail, so we have to take that into account now.
   case cfgE of
-    Left err   -> undefined
-    Right _cfg -> run undefined undefined
+    Left err   -> error "App Failed to Start Up"
+    Right _cfg -> run 3000 $ app _cfg
 
 -- We need to complete the following steps to prepare our app requirements:
 --
@@ -65,8 +65,9 @@ runApp = do
 --
 prepareAppReqs
   :: IO ( Either StartUpError DB.FirstAppDB )
-prepareAppReqs =
-  error "copy your prepareAppReqs from the previous level."
+prepareAppReqs = do
+  e <- DB.initDB $ Conf.dbFilePath Conf.firstAppConfig
+  return $ first (\err -> DbInitErr err) e
 
 -- | Some helper functions to make our lives a little more DRY.
 mkResponse
@@ -115,11 +116,23 @@ resp200Json =
 
 -- How has this implementation changed, now that we have an AppM to handle the
 -- errors for our application? Could it be simplified? Can it be changed at all?
-app
-  :: DB.FirstAppDB
-  -> Application
+app :: DB.FirstAppDB -> Application
 app db rq cb =
-  error "app not reimplemented"
+  let
+    handleErrors :: AppM Response -> IO Response
+    handleErrors (AppM ioeR) = do
+      eR <- ioeR
+      return $ case eR of
+        Left e    -> mkErrorResponse e
+        Right r   -> r
+
+    appMResp :: AppM Response
+    appMResp = do
+      rq' <- mkRequest rq
+      handleRequest db rq'
+  in do
+    resp <- handleErrors appMResp
+    cb resp
 
 handleRequest
   :: DB.FirstAppDB
