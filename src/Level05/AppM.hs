@@ -1,10 +1,12 @@
 {-# LANGUAGE FlexibleInstances     #-}
 {-# LANGUAGE InstanceSigs          #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
+{-# language ScopedTypeVariables   #-}
 module Level05.AppM where
 
 import           Control.Monad.Except   (MonadError (..))
 import           Control.Monad.IO.Class (MonadIO (..))
+import           Control.Monad          (join)
 
 import           Data.Text              (Text)
 
@@ -72,25 +74,50 @@ instance Applicative AppM where
   pure a = AppM (pure (Right a))
 
   (<*>) :: AppM (a -> b) -> AppM a -> AppM b
-  (<*>) (AppM ioef) (AppM ioea) = error ""
+  (<*>) (AppM ioef) (AppM ioea) = AppM iob
+    where
+    iob = do
+      ef <- ioef
+      ea <- ioea
+      pure (ea >>= (\a -> fmap (\f -> f(a)) ef ))
 
 instance Monad AppM where
   return :: a -> AppM a
   return a = AppM (pure (Right a))
 
-  (>>=) :: AppM a -> (a -> AppM b) -> AppM b
-  (>>=)  = error "bind for AppM not implemented"
+  (>>=) :: forall a b. AppM a -> (a -> AppM b) -> AppM b
+  (>>=)  (AppM ioea) f =
+    let
+      eitherManage :: Either Error a -> IO (Either Error (Either Error b))
+      eitherManage ea = runAppM (traverse f ea)
+      ioStackedEither :: IO (Either Error (Either Error b))
+      ioStackedEither = ioea >>= eitherManage
+      collapsedIO :: IO (Either Error b)
+      collapsedIO = fmap join ioStackedEither
+    in 
+      AppM collapsedIO
 
 instance MonadIO AppM where
   liftIO :: IO a -> AppM a
   liftIO ioa = AppM (fmap (\a -> Right a) ioa)
 
 instance MonadError Error AppM where
-  throwError :: Error -> AppM a
-  throwError = error "throwError for AppM not implemented"
+  throwError :: forall a. Error -> AppM a
+  throwError e =
+    let
+      io :: IO (Either Error a)
+      io = pure $ Left e
+    in AppM io
 
-  catchError :: AppM a -> (Error -> AppM a) -> AppM a
-  catchError = error "catchError for AppM not implemented"
+  catchError :: forall a. AppM a -> (Error -> AppM a) -> AppM a
+  catchError (AppM ioea) f = 
+    let
+      intermediate :: IO (Either Error a)
+      intermediate = do
+        ea <- ioea
+        either (\e -> runAppM (f e)) (\a -> pure $ Right a) ea
+    in
+      AppM intermediate
 
 -- This is a helper function that will `lift` an Either value into our new AppM
 -- by applying `throwError` to the Left value, and using `pure` to lift the
@@ -102,5 +129,5 @@ instance MonadError Error AppM where
 liftEither
   :: Either Error a
   -> AppM a
-liftEither =
-  error "throwLeft not implemented"
+liftEither e =
+  either throwError pure e
