@@ -7,12 +7,11 @@ module Level06.Conf
 import           GHC.Word                 (Word16)
 
 import           Data.Bifunctor           (first)
-import           Data.Monoid              ((<>))
+import           Data.Monoid              ((<>), Last(..))
 
-import           Level06.Types            (Conf, ConfigError,
-                                           DBFilePath (DBFilePath), PartialConf,
+import           Level06.Types            (Conf(..), ConfigError(..),
+                                           DBFilePath (DBFilePath), PartialConf(..),
                                            Port (Port))
-
 import           Level06.Conf.CommandLine (commandLineParser)
 import           Level06.Conf.File        (parseJSONConfigFile)
 
@@ -22,7 +21,7 @@ import           Level06.Conf.File        (parseJSONConfigFile)
 defaultConf
   :: PartialConf
 defaultConf =
-  error "defaultConf not implemented"
+  PartialConf (Last $ Just $ Port 8000) (Last $ Just $ DBFilePath "simpledb.db")
 
 -- We need something that will take our PartialConf and see if can finally build
 -- a complete ``Conf`` record. Also we need to highlight any missing values by
@@ -30,8 +29,9 @@ defaultConf =
 makeConfig
   :: PartialConf
   -> Either ConfigError Conf
-makeConfig =
-  error "makeConfig not implemented"
+makeConfig (PartialConf (Last (Just p)) (Last (Just db))) = Right $ Conf p db
+makeConfig _ = Left ConfigError
+  
 
 -- This is the function we'll actually export for building our configuration.
 -- Since it wraps all our efforts to read information from the command line, and
